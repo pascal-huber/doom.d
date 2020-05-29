@@ -1,0 +1,509 @@
+#+TITLE: Doom Config
+
+* Tweaking Emacs Defaults
+
+This section contains customizations of Emacs' default settings.
+
+** Scroll
+
+When scrolling, keep the cursor at the same position.
+
+#+BEGIN_SRC emacs-lisp
+(setq scroll-preserve-screen-position 'keep)
+#+END_SRC
+
+** Auto revert
+
+When something changes a file, automatically refresh the buffer containing that
+file so they can't get out of sync.
+
+#+BEGIN_SRC emacs-lisp
+(global-auto-revert-mode t)
+#+END_SRC
+
+Update vc-info when reverting (e.g. after changing branch). Note that this may
+cause performance issues when many buffers are present.
+
+#+BEGIN_SRC emacs-lisp
+(setq auto-revert-check-vc-info t)
+#+END_SRC
+
+** Line Unfilling
+
+To undo paragraph and region reorganization. Stolen from [[https://www.emacswiki.org/emacs/UnfillParagraph][here]].
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/unfill-paragraph (&optional region)
+  "Takes a multi-line paragraph and makes it into a single line
+of text."
+  (interactive (progn (barf-if-buffer-read-only) '(t)))
+  (let ((fill-column (point-max))
+        ;; This would override `fill-column' if it's an integer.
+        (emacs-lisp-docstring-fill-column t))
+    (fill-paragraph nil region)))
+#+END_SRC
+
+** Whitespace Cleanup
+
+Delete trailing whitespaces when saving.
+
+#+BEGIN_SRC emacs-lisp
+(add-hook 'write-file-hooks 'delete-trailing-whitespace)
+#+END_SRC
+
+** Buffers and Frames
+
+Split functions which open the previous buffer in the new window instead of
+showing the current buffer twice. [[http://www.alandmoore.com/blog/2013/05/01/better-window-splitting-in-emacs/][Stolen shamelessly from here]]
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/vsplit-last-buffer ()
+  (interactive)
+  (split-window-vertically)
+  (other-window 1 nil)
+  (switch-to-next-buffer))
+
+(defun ph/hsplit-last-buffer ()
+  (interactive)
+  (split-window-horizontally)
+  (other-window 1 nil)
+  (switch-to-next-buffer))
+#+END_SRC
+
+A function to open the previous buffer in a new frame.
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/open-last-buffer ()
+  (interactive)
+  (switch-to-buffer-other-frame (other-buffer)))
+#+END_SRC
+** Kill Buffers
+
+Kill all but the current buffer. [[https://www.emacswiki.org/emacs/KillingBuffers][Stolen shamelessly from here]].
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/kill-other-buffers ()
+  "Kill all other buffers."
+  (interactive)
+  (mapc 'kill-buffer (delq (current-buffer) (buffer-list))))
+#+END_SRC
+
+** Garbage
+
+#+BEGIN_SRC emacs-lisp
+(setq gc-cons-threshold (* 20 1000 1000))
+#+END_SRC
+
+* Doom Module configuration
+** Which-key
+
+#+BEGIN_SRC emacs-lisp
+(after! which-key
+  ;; (setq which-key-show-operator-state-maps t)
+  ;; why this has no effect?
+  (setq which-key-idle-delay 0.4))
+#+END_SRC
+
+#+RESULTS:
+: 0.4
+
+** Web
+
+#+BEGIN_SRC emacs-lisp
+;(after! web-mode
+  (add-to-list 'auto-mode-alist '("\\.tag\\'" . web-mode))
+  (setq web-mode-engines-alist
+        '(("riot" . "\\.tag\\'")))
+;;)
+#+END_SRC
+
+#+RESULTS:
+: ((riot . \.tag\'))
+
+** Mu4e
+*** General
+
+#+BEGIN_SRC emacs-lisp
+(after! mu4e
+  ;; use offlineimap
+  (setq mu4e-get-mail-command "offlineimap")
+  ;; Set attachment directory
+  (setq mu4e-attachment-dir  "~/Downloads")
+  ;; Close mu4e without asking
+  (setq mu4e-confirm-quit nil)
+  ;; Don't show my addresses in mu4e-main
+  (setq mu4e-main-buffer-hide-personal-addresses t)
+  ;; hide indexing messages
+  (setq mu4e-hide-index-messages t)
+  ;; update every 10 minutes
+  (setq mu4e-update-interval (* 10 60)))
+#+END_SRC
+
+*** Contexts
+
+#+BEGIN_SRC emacs-lisp
+(after! mu4e
+  (setq mu4e-contexts
+      `(,(make-mu4e-context
+          :name "Private"
+          :match-func (lambda (msg)
+                        (when msg
+                          (or
+                           (mu4e-message-contact-field-matches
+                            msg
+                            :to "pascal.huber@resolved.ch")
+                           (mu4e-message-contact-field-matches
+                            msg
+                            :to "accounts@resolved.ch"))))
+          :vars '((user-full-name                . "Pascal Huber" )
+                  (user-mail-address             . "pascal.huber@resolved.ch")
+                  (mu4e-get-mail-command         . "offlineimap")
+                  (mu4e-drafts-folder            . "/r/Drafts")
+                  (mu4e-sent-folder              . "/r/Sent")
+                  (mu4e-trash-folder             . "/r/Trash")
+                  (mu4e-maildir-shortcuts
+                   .( ("/r/INBOX"                . ?i)
+                      ("/r/Sent"                 . ?s)
+                      ("/r/Spam"                 . ?x)
+                      ("/r/keep"                 . ?k)
+                      ("/r/tempKeep"             . ?t)
+                      ("/r/Trash"                . ?b)))
+                  (mu4e-compose-crypto-reply-plain-policy . sign)
+                  (ph/mu4e-default-search-expr   . "maildir:/r/.*[^Trash]/")
+                  (mu4e-sent-messages-behavior   . sent)
+                  (smtpmail-stream-type          . starttls)
+                  (smtpmail-default-smtp-server  . "mail.infomaniak.com")
+                  (smtpmail-smtp-server          . "mail.infomaniak.com")
+                  (smtpmail-smtp-service         . 587)
+                  (smtpmail-smtp-user            . "pascal.huber@resolved.ch")
+                  (smtpmail-starttls-credentials . "/home/pascal/.authinfo.gpg")
+                  (smtpmail-auth-credentials     . '(("mail.resolved.ch" 587 nil nil)))))
+        ,(make-mu4e-context
+          :name "QuickShift"
+          :match-func (lambda (msg)
+                        (when msg
+                          (mu4e-message-contact-field-matches
+                           msg
+                           :to "pascal@quickshift.ch")))
+          :vars '((user-full-name                . "Pascal Huber" )
+                  (user-mail-address             . "pascal@quickshift.ch")
+                  (mu4e-get-mail-command         . "offlineimap")
+                  (mu4e-drafts-folder            . "/q/INBOX.Drafts")
+                  (mu4e-sent-folder              . "/q/INBOX.Sent")
+                  (mu4e-trash-folder             . "/q/INBOX.Trash")
+                  (mu4e-maildir-shortcuts
+                   .( ("/q/INBOX"                . ?i)
+                      ("/q/INBOX.Sent"           . ?s)
+                      ("/q/INBOX.spambucket"     . ?x)
+                      ("/q/INBOX.keep"           . ?k)
+                      ("/q/INBOX.live"           . ?l)
+                      ("/q/INBOX.customers"      . ?c)
+                      ("/q/INBOX.tempKeep"       . ?k)
+                      ("/q/INBOX.bugsnag"        . ?e)
+                      ("/q/INBOX.Trash"          . ?b)))
+                  (mu4e-compose-crypto-reply-plain-policy . sign)
+                  (ph/mu4e-default-search-expr   . "maildir:/q/.*[^Trash]/")
+                  (mu4e-sent-messages-behavior   . sent)
+                  (smtpmail-stream-type          . starttls)
+                  (smtpmail-default-smtp-server  . "mail.quickshift.ch")
+                  (smtpmail-smtp-server          . "mail.quickshift.ch")
+                  (smtpmail-smtp-service         . 587)
+                  (smtpmail-smtp-user            . "pascal@quickshift.ch")
+                  (smtpmail-starttls-credentials . "/home/pascal/.authinfo.gpg")
+                  (smtpmail-auth-credentials     . '(("mail.quickshift.ch" 587 nil nil)))))
+        ,(make-mu4e-context
+          :name "ETH"
+          :match-func (lambda (msg)
+                        (when msg
+                          (mu4e-message-contact-field-matches
+                           msg
+                           :to "pahuber@student.ethz.ch")))
+          :vars '((user-full-name                . "Pascal Huber" )
+                  (user-mail-address             . "pahuber@student.ethz.ch")
+                  (mu4e-get-mail-command         . "offlineimap")
+                  (mu4e-drafts-folder            . "/e/Drafts")
+                  (mu4e-sent-folder              . "/e/Sent Items")
+                  (mu4e-trash-folder             . "/e/Deleted Items")
+                  (mu4e-maildir-shortcuts
+                   .( ("/e/INBOX"                . ?i)
+                      ("/e/Junk E-Mail"          . ?x)
+                      ("/e/INBOX.keep"           . ?k)
+                      ("/e/INBOX.asl"            . ?a)
+                      ("/e/INBOX.iml"            . ?m)
+                      ("/e/INBOX.negotiation"    . ?n)
+                      ("/e/INBOX.podc"           . ?p)
+                      ("/e/Sent Items"           . ?s)
+                      ("/e/INBOX.tmp"            . ?t)
+                      ("/e/Deleted Items"        . ?b)))
+                  (mu4e-compose-crypto-reply-plain-policy . sign)
+                  (ph/mu4e-default-search-expr   . "maildir:/e/.*[^Deleted\\ Items]/")
+                  (mu4e-sent-messages-behavior   . sent)
+                  (smtpmail-stream-type          . starttls)
+                  (smtpmail-default-smtp-server  . "mail.ethz.ch")
+                  (smtpmail-smtp-server          . "mail.ethz.ch")
+                  (smtpmail-smtp-service         . 587)
+                  (smtpmail-smtp-user            . "pahuber")
+                  (smtpmail-starttls-credentials . "/home/pascal/.authinfo.gpg")
+                  (smtpmail-auth-credentials     . '(("mail.ethz.ch" 587 nil nil))))))))
+
+
+;; (set-email-account! "Lissner.net"
+;;   '((mu4e-sent-folder       . "/Lissner.net/Sent Mail")
+;;     (mu4e-drafts-folder     . "/Lissner.net/Drafts")
+;;     (mu4e-trash-folder      . "/Lissner.net/Trash")
+;;     (mu4e-refile-folder     . "/Lissner.net/All Mail")
+;;     (smtpmail-smtp-user     . "henrik@lissner.net")
+;;     (mu4e-compose-signature . "---\nHenrik Lissner"))
+;;   t)
+#+END_SRC
+
+#+RESULTS:
+: hi
+
+* Key Bindings
+** Doom
+
+Don't do anything on =SPC-x=.
+
+#+BEGIN_SRC emacs-lisp
+(map! :leader "x" nil)
+#+END_SRC
+
+** God Mode
+
+My beloved copy of =god-mode=.
+
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "~/.doom.d/lib/")
+(require 'god-mode)
+#+END_SRC
+
+And because doom already has SPC covered, I use comma.
+
+#+BEGIN_SRC emacs-lisp
+(map! :n "," 'god-local-mode)
+(map! :v "," 'god-local-mode)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(after! which-key
+  (which-key-enable-god-mode-support))
+#+END_SRC
+
+* UI
+** Default Font
+
+Set default font
+
+#+BEGIN_SRC emacs-lisp
+(setq doom-font (font-spec :family "DejaVu Sans Mono"
+                           :size 20
+                           :weight 'normal)
+      doom-variable-pitch-font (font-spec :family "DejaVu Sans Mono") ; inherits `doom-font''s :size
+      doom-unicode-font (font-spec :family "DejaVu Sans Mono" :size 20)
+      doom-big-font (font-spec :family "DejaVu Sans Mono" :size 30))
+#+END_SRC
+
+** Modeline
+
+#+BEGIN_SRC emacs-lisp
+(after! doom-modeline
+  (setq doom-modeline-percent-position nil)
+  (setq doom-modeline-height 26)
+  (setq doom-modeline-checker-simple-format nil)
+  (setq doom-modeline-minor-modes nil)
+  (setq doom-modeline-vcs-max-length 24)
+  (setq doom-modeline-buffer-file-name-style 'buffer-name)
+  )
+#+END_SRC
+
+#+RESULTS:
+: buffer-name
+
+#+BEGIN_SRC emacs-lisp
+(after! doom-modeline
+(doom-modeline-def-segment ph/projectile-project-name
+  (when (projectile-project-p)
+    (concat
+     (doom-modeline-spc)
+     (propertize (projectile-project-name) 'face
+                 (if (doom-modeline--active)
+                     'doom-modeline-buffer-path
+                   'mode-line-inactive))
+     (doom-modeline-spc))))
+  )
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(after! doom-modeline
+(setq doom-modeline-evil-state-faces-alist
+      '((normal . doom-modeline-evil-normal-state)
+        (emacs . doom-modeline-evil-emacs-state)
+        (insert . doom-modeline-evil-insert-state)
+        (motion . doom-modeline-evil-motion-state)
+        (visual . doom-modeline-evil-visual-state)
+        (operator . doom-modeline-evil-operator-state)
+        (replace . doom-modeline-evil-replace-state)))
+
+(doom-modeline-def-segment ph/evil-state
+  "The current evil state. Requires `evil-mode' to be enabled."
+  (when (bound-and-true-p evil-local-mode)
+    (let ((tag (evil-state-property evil-state :tag t)))
+      (propertize (if (stringp tag) tag (funcall tag)) 'face
+                  (if (doom-modeline--active)
+                      (cdr (assoc evil-state
+                                  doom-modeline-evil-state-faces-alist))
+                    'doom-modeline-bar-inactive)))))
+
+(set-face-attribute 'doom-modeline-evil-emacs-state nil
+                    :foreground "#111"
+                    :background "SkyBlue")
+(set-face-attribute 'doom-modeline-evil-insert-state nil
+                    :foreground "#111"
+                    :background "LimeGreen")
+(set-face-attribute 'doom-modeline-evil-motion-state nil
+                    :foreground "#111"
+                    :background "#9c91e4")
+(set-face-attribute 'doom-modeline-evil-normal-state nil
+                    :foreground "#111"
+                    :background "#ffdd30")
+(set-face-attribute 'doom-modeline-evil-operator-state nil
+                    :foreground "#111"
+                    :background "NavajoWhite")
+(set-face-attribute 'doom-modeline-evil-visual-state nil
+                    :foreground "#111"
+                    :background "#aaaaaa")
+(set-face-attribute 'doom-modeline-evil-replace-state nil
+                    :foreground "#111"
+                    :background "#fd971f")
+)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+;; (doom-modeline-def-modeline 'main
+;;   '(bar workspace-name window-number modals matches buffer-info remote-host buffer-position word-count parrot selection-info)
+;;   '(objed-state misc-info persp-name battery grip irc mu4e gnus github debug lsp minor-modes input-method indent-info buffer-encoding major-mode process vcs checker))
+(after! doom-modeline
+  (doom-modeline-def-modeline 'ph/mode-line
+  '(bar
+    workspace-name
+    window-number
+    ph/evil-state
+    ;; matches
+    buffer-info
+    remote-host
+    buffer-position
+    parrot
+    selection-info
+    ;tramp-method
+    ;ph/buffer-info
+    ;ph/flyspell-dictionary
+    checker)
+  '(minor-modes
+    media-info
+    misc-info
+    vcs
+    ph/projectile-project-name
+    major-mode))
+
+  (defun setup-custom-doom-modeline ()
+    (doom-modeline-set-modeline 'ph/mode-line 'default))
+  (add-hook 'doom-modeline-mode-hook 'setup-custom-doom-modeline)
+
+  ;; workaround for scaling problem
+  (add-hook 'buffer-list-update-hook 'doom-modeline-refresh-font-width-cache)
+  )
+#+END_SRC
+
+#+RESULTS:
+| setup-custom-doom-modeline | doom-modeline-override-battery-modeline | doom-modeline-override-rcirc-modeline | doom-modeline-override-mu4e-alert-modeline | doom-modeline-override-eglot-modeline | column-number-mode | size-indication-mode |
+
+** Themes
+
+#+BEGIN_SRC emacs-lisp
+(setq ph/theme-list
+      '(doom-peacock
+        doom-tomorrow-day))
+
+(defun ph/call-rotate (fn lst)
+  "Call FN with first element of the LST.
+Returns the rotated list."
+  (let ((args (car lst)))
+    (funcall fn args)
+    (append (cdr lst) (cons args ()))))
+
+(defun ph/next-theme ()
+  "Load next theme."
+  (interactive)
+  (setq ph/theme-list
+        (ph/call-rotate 'ph/load-theme ph/theme-list)))
+
+(map!
+ :map ph/global-keys-keymap
+ "<f5>"  'ph/next-theme)
+
+;; (add-hook 'emacs-startup-hook 'ph/next-theme)
+(add-hook 'doom-init-ui-hook 'ph/next-theme)
+#+END_SRC
+
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/load-theme (theme)
+ "Like load-theme but first disable all custom-enabled themes ,
+then load THEME and finally do some customizations."
+  (interactive
+   (list
+    (intern (completing-read
+             "Load custom theme: "
+             (mapcar 'symbol-name (custom-available-themes))))))
+  (mapcar 'disable-theme custom-enabled-themes)
+  (load-theme theme t)
+  (ph/customize-theme theme)
+  (ph/any-theme-customize))
+
+(defun ph/customize-theme (theme)
+  "Call ph/THEME-customize if existent."
+  (let ((fn (intern (concat "ph/" (symbol-name theme) "-customize"))))
+    (message (concat "ph/" (symbol-name theme) "-customize"))
+    (if (functionp fn)
+        (funcall fn))))
+
+(defun ph/doom-peacock-customize ()
+  ;; highlight current line number
+  (set-face-attribute 'line-number-current-line nil
+                      :foreground "#BCD42A"
+                      :weight 'bold))
+
+(defun ph/any-theme-customize ()
+  "This function sets some default values for all themes."
+
+  ;; Never ever scale org and markdown headings
+  (set-face-attribute 'org-level-1 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-2 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-3 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-4 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-5 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-6 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-7 nil
+                      :height 1.0 :background nil)
+  (set-face-attribute 'org-level-8 nil
+                      :height 1.0 :background nil)
+
+  (set-face-attribute 'doom-modeline-bar nil
+                      :foreground nil
+                      :background nil)
+
+  ;; Use a smaller font for the mode-line
+  (set-face-attribute 'mode-line nil
+                      :height 80)
+  (set-face-attribute 'mode-line-inactive nil
+                      :height 80)
+)
+
+#+END_SRC
