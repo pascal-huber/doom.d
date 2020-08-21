@@ -51,6 +51,8 @@ Delete trailing whitespaces when saving.
 (add-hook 'write-file-hooks 'delete-trailing-whitespace)
 #+END_SRC
 
+# TODO: this doesn't seem to work everywhere :/
+
 ** Buffers and Frames
 
 Split functions which open the previous buffer in the new window instead of
@@ -90,11 +92,82 @@ Kill all but the current buffer. [[https://www.emacswiki.org/emacs/KillingBuffer
 
 ** Garbage
 
+For some reason
+
 #+BEGIN_SRC emacs-lisp
-(setq gc-cons-threshold (* 20 1000 1000))
+;; (setq gc-cons-threshold (* 20 1000 1000))
 #+END_SRC
 
+# TODO: is the gc an issue in doom emacs?
+
+** Password Cache
+
+# TODO: this doesn't work, at least not for tramp
+
+#+BEGIN_SRC emacs-lisp
+(setq-default password-cache nil)
+#+END_SRC
+
+* Additional Functionality
+** Sudo Save
+
+If the current buffer is not writable, ask if it should be saved with sudo.
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/sudo-file-name (filename)
+  "Prepend '/sudo:root@`system-name`:' to FILENAME if appropriate.
+If the file already has a tramp prefix, return nil."
+  (when (and filename
+             (not (file-remote-p filename)))
+    (format "/sudo:root@%s:%s" (system-name) filename)))
+
+(defun ph/sudo-save-buffer ()
+  "Save buffer as root if the user approves."
+  (let ((filename (ph/sudo-file-name (buffer-file-name))))
+    (when (and filename
+               (yes-or-no-p (format "Save file as %s ? " filename)))
+      (write-file filename))))
+
+(defun ph/sudo-save-necessary-p ()
+  "Return t if file cannot be written as normal user"
+  (or (not (buffer-file-name))
+      (not (buffer-modified-p))
+      (file-writable-p (buffer-file-name))))
+
+
+(defun ph/sudo-save (fn &rest args)
+  "Call ph/sudo-save-buffer if necessary or call FN with ARGS."
+  (unless (and (ph/sudo-save-necessary-p)
+               (ph/sudo-save-buffer))
+    (call-interactively fn args)))
+
+(define-minor-mode ph/sudo-save-mode
+  "A minor to save files as sudo if they are not writable."
+  nil ;; init-value
+  "sudo" ;; lighter
+  nil
+  (if (bound-and-true-p ph/sudo-save-mode)
+      (advice-add 'save-buffer :around 'ph/sudo-save)
+    (advice-remove 'save-buffer 'ph/sudo-save)))
+#+END_SRC
+
+#+RESULTS:
+
 * Doom Module configuration
+** Org Mode
+
+#+BEGIN_SRC emacs-lisp
+(after! org
+  ;; don't indent code blocks
+  (setq org-edit-src-content-indentation 0)
+  ;; don’t ask for permission every time when executing a code block.
+  (setq org-confirm-babel-evaluate nil)
+  ;; don't indent first line after heading
+  (setq org-adapt-indentation nil)
+  ;; enable toc-org
+  (add-hook 'org-mode-hook 'toc-org-enable))
+#+END_SRC
+
 ** Which-key
 
 #+BEGIN_SRC emacs-lisp
@@ -120,13 +193,94 @@ Kill all but the current buffer. [[https://www.emacswiki.org/emacs/KillingBuffer
 #+RESULTS:
 : ((riot . \.tag\'))
 
+** LSP
+
+#+BEGIN_SRC emacs-lisp
+(after! lsp-ui
+  (setq lsp-ui-doc-enable t))
+#+END_SRC
+
+** TeX
+
+# TODO: cargo uses 100% cpu, why?
+# $ cargo install --git https://github.com/latex-lsp/texlab.git
+
+install a lsp server
+$ luarocks install digestif
+
+I want to scroll. I use evince.
+
+#+BEGIN_SRC emacs-lisp
+(setq +latex-viewers '(evince))
+
+(after! tex
+  (setq TeX-fold-mode nil))
+#+END_SRC
+
+[[https://procrastiblog.com/2007/11/25/style-guidelines-for-people/][Stolen shamelessly from here.]]
+
+#+BEGIN_SRC emacs-lisp
+;; (defun ph/TeX-fill-sentence ()
+;;   (interactive)
+;;   (save-excursion
+;;     (or (eq (point) (point-max)) (forward-char))
+;;     (forward-sentence -1)
+;;     (indent-relative t)
+;;     (let ((beg (point))
+;;           (ix (string-match "LaTeX" mode-name)))
+;;       (forward-sentence)
+;;       (if (and ix (equal "LaTeX" (substring mode-name ix)))
+;;           (LaTeX-fill-region-as-paragraph beg (point))
+;;         (fill-region-as-paragraph beg (point))))))
+
+;; (map!
+;;  :after tex
+;;  :map TeX-mode-map
+;;  "M-q" 'ph/TeX-fill-sentence)
+
+
+;; Another "solution"
+;; (defadvice LaTeX-fill-region-as-paragraph (around LaTeX-sentence-filling)
+;;   "Start each sentence on a new line."
+;;   (let ((from (ad-get-arg 0))
+;;         (to-marker (set-marker (make-marker) (ad-get-arg 1)))
+;;         tmp-end)
+;;     (while (< from (marker-position to-marker))
+;;       (forward-sentence)
+;;       ;; might have gone beyond to-marker --- use whichever is smaller:
+;;       (ad-set-arg 1 (setq tmp-end (min (point) (marker-position to-marker))))
+;;       ad-do-it
+;;       (ad-set-arg 0 (setq from (point)))
+;;       (unless (or
+;;                (bolp)
+;;                (looking-at "\\s *$"))
+;;         (LaTeX-newline)))
+;;     (set-marker to-marker nil)))
+
+;; (ad-activate 'LaTeX-fill-region-as-paragraph)
+#+END_SRC
+
+#+RESULTS:
+: LaTeX-fill-region-as-paragraph
+
+** Flycheck
+
+#+BEGIN_SRC emacs-lisp
+(after! flycheck
+  (setq flycheck-popup-tip-mode nil))
+#+END_SRC
+
 ** Mu4e
 *** General
 
 #+BEGIN_SRC emacs-lisp
 (after! mu4e
+  ;; no fancy for me
+  (setq mu4e-use-fancy-chars nil)
   ;; use offlineimap
   (setq mu4e-get-mail-command "offlineimap")
+  ;; don't show images inline
+  (setq mu4e-view-show-images nil)
   ;; Set attachment directory
   (setq mu4e-attachment-dir  "~/Downloads")
   ;; Close mu4e without asking
@@ -136,7 +290,78 @@ Kill all but the current buffer. [[https://www.emacswiki.org/emacs/KillingBuffer
   ;; hide indexing messages
   (setq mu4e-hide-index-messages t)
   ;; update every 10 minutes
-  (setq mu4e-update-interval (* 10 60)))
+  (setq mu4e-update-interval (* 10 60))
+
+  (setq shr-color-visible-luminance-min 60)
+  (setq shr-color-visible-distance-min 5)
+  (setq shr-use-colors nil))
+  ;;(advice-add #'shr-colorize-region :around (defun shr-no-colourise-region (&rest ignore))))
+
+#+END_SRC
+
+#+RESULTS:
+
+Open mu4e in the current frame or switch to an already existing mu4e-buffer.
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/mu4e (fn &rest args)
+  "Open or switch to mu4e."
+  (interactive)
+  (unless (string-prefix-p "mu4e" (symbol-name major-mode))
+    (let ((buffer (get-buffer "*mu4e-headers*")))
+      (if buffer (switch-to-buffer buffer) (call-interactively fn args)))))
+
+(advice-add 'mu4e :around 'ph/mu4e)
+(advice-add '=mu4e :around 'ph/mu4e)
+#+END_SRC
+
+*** Bookmarks
+
+Custom Bookmarks
+
+#+BEGIN_SRC emacs-lisp
+(after! mu4e
+  (add-to-list 'mu4e-bookmarks
+               (make-mu4e-bookmark
+                :name  "Big ones"
+                :query "size:5M..50000M"
+                :key ?b))
+  (add-to-list 'mu4e-bookmarks
+               (make-mu4e-bookmark
+                :name  "Bullshit"
+                :query "maildir:/.*/.*\\(spam\\|junk\\).*/"
+                :key ?s)))
+#+END_SRC
+
+*** Forgotten Attachment
+
+Before sending a message, check if it contains any words that indicate that
+there should be an attachement. If it does, ask if all attachments were added
+before sending the mail.
+
+#+BEGIN_SRC emacs-lisp
+(defvar ph/message-attachment-regexp
+  (concat "\\("
+          "[Ww]e send\\|"
+          "[Ii] send\\|"
+          "attach\\|"
+          "[aA]nhang\\|"
+          "[aA]ngehängt\\|"
+          "[sS]chicke\\|"
+          "haenge\\|"
+          "hänge\\)"))
+
+(defun ph/message-check-attachment nil
+  "Check for forgotten attachments"
+  (save-excursion
+    (message-goto-body)
+    (when (search-forward-regexp ph/message-attachment-regexp nil t nil)
+      (message-goto-body)
+      (unless (message-y-or-n-p
+               "Did you attach all documents?" nil nil)
+        (error "No message sent, add some attachments!")))))
+
+(add-hook 'message-send-hook 'ph/message-check-attachment)
 #+END_SRC
 
 *** Contexts
@@ -205,12 +430,12 @@ Kill all but the current buffer. [[https://www.emacswiki.org/emacs/KillingBuffer
                   (ph/mu4e-default-search-expr   . "maildir:/q/.*[^Trash]/")
                   (mu4e-sent-messages-behavior   . sent)
                   (smtpmail-stream-type          . starttls)
-                  (smtpmail-default-smtp-server  . "mail.quickshift.ch")
-                  (smtpmail-smtp-server          . "mail.quickshift.ch")
+                  (smtpmail-default-smtp-server  . "mail.your-server.de")
+                  (smtpmail-smtp-server          . "mail.your-server.de")
                   (smtpmail-smtp-service         . 587)
                   (smtpmail-smtp-user            . "pascal@quickshift.ch")
                   (smtpmail-starttls-credentials . "/home/pascal/.authinfo.gpg")
-                  (smtpmail-auth-credentials     . '(("mail.quickshift.ch" 587 nil nil)))))
+                  (smtpmail-auth-credentials     . '(("mail.your-server.de" 587 nil nil)))))
         ,(make-mu4e-context
           :name "ETH"
           :match-func (lambda (msg)
@@ -257,37 +482,67 @@ Kill all but the current buffer. [[https://www.emacswiki.org/emacs/KillingBuffer
 ;;   t)
 #+END_SRC
 
-#+RESULTS:
-: hi
-
 * Key Bindings
 ** Doom
 
-Don't do anything on =SPC-x=.
+Don't do anything on =SPC-x= for muscle-memory's sake.
+
+#TODO: remove this when I feel comfortable enough with Doom's keybindings
 
 #+BEGIN_SRC emacs-lisp
 (map! :leader "x" nil)
 #+END_SRC
 
+This is redundant (=leader w h=) and conflicts with the which-key help.
+
+#+BEGIN_SRC emacs-lisp
+(map! :leader "w C-h" nil)
+#+END_SRC
+
 ** God Mode
 
-My beloved copy of =god-mode=.
+My beloved =god-mode=. Because doom already has SPC covered, I use comma
+instead.
 
 #+BEGIN_SRC emacs-lisp
-(add-to-list 'load-path "~/.doom.d/lib/")
-(require 'god-mode)
+(map! :n "," 'god-execute-with-current-bindings)
+(map! :v "," 'god-execute-with-current-bindings)
 #+END_SRC
 
-And because doom already has SPC covered, I use comma.
-
-#+BEGIN_SRC emacs-lisp
-(map! :n "," 'god-local-mode)
-(map! :v "," 'god-local-mode)
-#+END_SRC
+Also enable which-key for =god-mode=
 
 #+BEGIN_SRC emacs-lisp
 (after! which-key
   (which-key-enable-god-mode-support))
+#+END_SRC
+
+** Custom keybindings
+
+My global keybindings are defined here. In order to get a better overview, they
+are neatly packed inside a minor-mode with its own keymap.
+
+#+BEGIN_SRC emacs-lisp
+(defvar ph/global-keys-keymap (make-sparse-keymap))
+
+(define-minor-mode ph/global-keys-mode
+  "A minor mode with personalized keybindings."
+  t ;; init-value
+  nil ;; lighter
+  ph/global-keys-keymap)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(map!
+ :map ph/global-keys-keymap
+ "C-c l u" 'ph/unfill-paragraph
+ "C-x C-b" 'ivy-switch-buffer
+ "<f5>"  'ph/next-theme)
+#+END_SRC
+
+** Org
+
+#+BEGIN_SRC emacs-lisp
+;; (after! org (setq org-superstar-headline-bullets-list '("*")) ) #+END_SRC
 #+END_SRC
 
 * UI
@@ -296,29 +551,35 @@ And because doom already has SPC covered, I use comma.
 Set default font
 
 #+BEGIN_SRC emacs-lisp
-(setq doom-font (font-spec :family "DejaVu Sans Mono"
-                           :size 20
+;; ;; Why not like this?
+;; (set-face-attribute 'default nil
+;;                     :height 120
+;;                     :family "Iosevka Term Slab")
+
+(setq doom-font-increment 1)
+
+(setq doom-font (font-spec :family "Iosevka Term Slab"
+                           :size 22
                            :weight 'normal)
-      doom-variable-pitch-font (font-spec :family "DejaVu Sans Mono") ; inherits `doom-font''s :size
-      doom-unicode-font (font-spec :family "DejaVu Sans Mono" :size 20)
-      doom-big-font (font-spec :family "DejaVu Sans Mono" :size 30))
+      ;; inherits `doom-font''s :size
+      doom-variable-pitch-font (font-spec :family "Iosevka Term Slab")
+      doom-unicode-font (font-spec :family "Iosevka Term Slab" :size 22)
+      doom-big-font (font-spec :family "Iosevka Term Slab" :size 24))
 #+END_SRC
 
 ** Modeline
 
 #+BEGIN_SRC emacs-lisp
 (after! doom-modeline
+  (setq doom-modeline-icon nil)
   (setq doom-modeline-percent-position nil)
-  (setq doom-modeline-height 26)
+  (setq doom-modeline-height 24)
   (setq doom-modeline-checker-simple-format nil)
   (setq doom-modeline-minor-modes nil)
   (setq doom-modeline-vcs-max-length 24)
   (setq doom-modeline-buffer-file-name-style 'buffer-name)
   )
 #+END_SRC
-
-#+RESULTS:
-: buffer-name
 
 #+BEGIN_SRC emacs-lisp
 (after! doom-modeline
@@ -357,34 +618,33 @@ Set default font
 
 (set-face-attribute 'doom-modeline-evil-emacs-state nil
                     :foreground "#111"
-                    :background "SkyBlue")
+                    :background "#83a598")
 (set-face-attribute 'doom-modeline-evil-insert-state nil
                     :foreground "#111"
-                    :background "LimeGreen")
+                    :background "#b8bb26")
 (set-face-attribute 'doom-modeline-evil-motion-state nil
                     :foreground "#111"
-                    :background "#9c91e4")
+                    :background "#8ec07c")
 (set-face-attribute 'doom-modeline-evil-normal-state nil
                     :foreground "#111"
-                    :background "#ffdd30")
+                    :background "#fabd2f")
 (set-face-attribute 'doom-modeline-evil-operator-state nil
                     :foreground "#111"
-                    :background "NavajoWhite")
+                    :background "#d5c4a1")
 (set-face-attribute 'doom-modeline-evil-visual-state nil
                     :foreground "#111"
-                    :background "#aaaaaa")
+                    :background "#ebdbb2")
 (set-face-attribute 'doom-modeline-evil-replace-state nil
                     :foreground "#111"
-                    :background "#fd971f")
+                    :background "#fb4934")
 )
 #+END_SRC
 
+Setup modeline with my segments.
+
 #+BEGIN_SRC emacs-lisp
-;; (doom-modeline-def-modeline 'main
-;;   '(bar workspace-name window-number modals matches buffer-info remote-host buffer-position word-count parrot selection-info)
-;;   '(objed-state misc-info persp-name battery grip irc mu4e gnus github debug lsp minor-modes input-method indent-info buffer-encoding major-mode process vcs checker))
 (after! doom-modeline
-  (doom-modeline-def-modeline 'ph/mode-line
+  (doom-modeline-def-modeline 'main
   '(bar
     workspace-name
     window-number
@@ -406,24 +666,19 @@ Set default font
     ph/projectile-project-name
     major-mode))
 
-  (defun setup-custom-doom-modeline ()
-    (doom-modeline-set-modeline 'ph/mode-line 'default))
-  (add-hook 'doom-modeline-mode-hook 'setup-custom-doom-modeline)
-
   ;; workaround for scaling problem
-  (add-hook 'buffer-list-update-hook 'doom-modeline-refresh-font-width-cache)
-  )
+  (add-hook 'buffer-list-update-hook 'doom-modeline-refresh-font-width-cache))
 #+END_SRC
 
 #+RESULTS:
-| setup-custom-doom-modeline | doom-modeline-override-battery-modeline | doom-modeline-override-rcirc-modeline | doom-modeline-override-mu4e-alert-modeline | doom-modeline-override-eglot-modeline | column-number-mode | size-indication-mode |
+| doom-modeline-refresh-font-width-cache | flycheck-handle-buffer-switch | doom-run-switch-window-hooks-h | doom-modeline-window-size-change-function | doom-modeline-set-selected-window |
 
 ** Themes
 
 #+BEGIN_SRC emacs-lisp
 (setq ph/theme-list
-      '(doom-peacock
-        doom-tomorrow-day))
+      '(doom-gruvbox
+        doom-gruvbox-light))
 
 (defun ph/call-rotate (fn lst)
   "Call FN with first element of the LST.
@@ -438,72 +693,72 @@ Returns the rotated list."
   (setq ph/theme-list
         (ph/call-rotate 'ph/load-theme ph/theme-list)))
 
-(map!
- :map ph/global-keys-keymap
- "<f5>"  'ph/next-theme)
-
-;; (add-hook 'emacs-startup-hook 'ph/next-theme)
-(add-hook 'doom-init-ui-hook 'ph/next-theme)
+;; TODO: is there a better way to call a function after startup such that it
+;; still looks good with org-superstar-mode?
+;; (add-hook 'after-init-hook 'ph/next-theme)
+;; (after! org (ph/next-theme))
+;; (add-hook 'doom-init-theme-hook 'ph/next-theme)
+(add-hook 'emacs-startup-hook 'ph/next-theme)
 #+END_SRC
 
+Functions to load and customize themes.
 
 #+BEGIN_SRC emacs-lisp
-(defun ph/load-theme (theme)
- "Like load-theme but first disable all custom-enabled themes ,
-then load THEME and finally do some customizations."
-  (interactive
-   (list
-    (intern (completing-read
-             "Load custom theme: "
-             (mapcar 'symbol-name (custom-available-themes))))))
-  (mapcar 'disable-theme custom-enabled-themes)
-  (load-theme theme t)
-  (ph/customize-theme theme)
-  (ph/any-theme-customize))
+  (defun ph/load-theme (theme)
+   "Like load-theme but first disable all custom-enabled themes ,
+  then load THEME and finally do some customizations."
+    (interactive
+     (list
+      (intern (completing-read
+               "Load custom theme: "
+               (mapcar 'symbol-name (custom-available-themes))))))
+    (mapcar 'disable-theme custom-enabled-themes)
+    (load-theme theme t)
+    (ph/customize-theme theme)
+    (ph/any-theme-customize))
 
-(defun ph/customize-theme (theme)
-  "Call ph/THEME-customize if existent."
-  (let ((fn (intern (concat "ph/" (symbol-name theme) "-customize"))))
-    (message (concat "ph/" (symbol-name theme) "-customize"))
-    (if (functionp fn)
-        (funcall fn))))
+  (defun ph/customize-theme (theme)
+    "Call ph/THEME-customize if existent."
+    (let ((fn (intern (concat "ph/" (symbol-name theme) "-customize"))))
+      (message (concat "ph/" (symbol-name theme) "-customize"))
+      (if (functionp fn)
+          (funcall fn))))
 
-(defun ph/doom-peacock-customize ()
-  ;; highlight current line number
-  (set-face-attribute 'line-number-current-line nil
-                      :foreground "#BCD42A"
-                      :weight 'bold))
+  (defun ph/doom-peacock-customize ()
+    ;; highlight current line number
+    (set-face-attribute 'line-number-current-line nil
+                        :foreground "#BCD42A"
+                        :weight 'bold))
 
-(defun ph/any-theme-customize ()
-  "This function sets some default values for all themes."
+  (defun ph/any-theme-customize ()
+    "This function sets some default values for all themes."
 
-  ;; Never ever scale org and markdown headings
-  (set-face-attribute 'org-level-1 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-2 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-3 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-4 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-5 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-6 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-7 nil
-                      :height 1.0 :background nil)
-  (set-face-attribute 'org-level-8 nil
-                      :height 1.0 :background nil)
+    ;; Never ever scale org and markdown headings
+    ;; (set-face-attribute 'org-level-1 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-2 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-3 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-4 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-5 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-6 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-7 nil
+    ;;                     :height 1.0 :background nil)
+    ;; (set-face-attribute 'org-level-8 nil
+    ;;                     :height 1.0 :background nil)
 
-  (set-face-attribute 'doom-modeline-bar nil
-                      :foreground nil
-                      :background nil)
+    (set-face-attribute 'doom-modeline-bar nil
+                        :foreground nil
+                        :background nil)
 
-  ;; Use a smaller font for the mode-line
-  (set-face-attribute 'mode-line nil
-                      :height 80)
-  (set-face-attribute 'mode-line-inactive nil
-                      :height 80)
-)
-
+    ;; Use a smaller font for the mode-line
+    (set-face-attribute 'mode-line nil
+                        :height 100)
+    (set-face-attribute 'mode-line-inactive nil
+                        :height 100)
+  )
 #+END_SRC

@@ -1,8 +1,41 @@
 ;; -*- no-byte-compile: t; -*-
 ;;; $DOOMDIR/packages.el
+;;;
+;;;
+
+(package! lsp-latex)
+
+;;
+(package! doom-themes)
+
+;; Org-mode
+(package! org)
+(package! toc-org)
+
+;; don't use flycheck-popup-tip - maybe try it later
+(package! flycheck-popup-tip :disable t)
+
+;; don't use org-mu4e - don't see the benefit
+(package! org-mu4e :disable t)
 
 ;; don't use org-superstar - too fancy for me...
 (package! org-superstar :disable t)
+
+;; use fixed which-key which works well with god-mode
+(unpin! which-key)
+(package! which-key
+  :recipe (:host github
+           :repo "darth10/emacs-which-key"
+           :branch "fix-paging-with-god-mode"))
+
+;; use fresh god-mode from master (this is probably not necessary)
+(package! god-mode
+  :recipe (:host github
+           :repo "emacsorphanage/god-mode"))
+
+;; The following is the orignal content of package.el
+
+;; https://github.com/darth10/emacs-which-key/tree/fix-paging-with-god-mode
 
 ;; To install a package with Doom you must declare them here and run 'doom sync'
 ;; on the command line, then restart Emacs for the changes to take effect -- or
@@ -25,7 +58,7 @@
 ;  :recipe (:host github :repo "username/repo"
 ;           :files ("some-file.el" "src/lisp/*.el")))
 
-;; If you'd like to disable a package included with Doom, you can do so here
+;; If you'd like ao disable a package included with Doom, you can do so here
 ;; with the `:disable' property:
 ;(package! builtin-package :disable t)
 
