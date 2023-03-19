@@ -1,5 +1,20 @@
 #+TITLE: Doom Config
 
+#+BEGIN_SRC emacs-lisp
+(setenv "PATH" (concat (getenv "PATH") ":/opt/texlive/2022/bin/x86_64-linux/"))
+#+END_SRC
+
+* General Helpers
+
+#+BEGIN_SRC emacs-lisp
+(defun ph/call-rotate (fn lst)
+  "Call FN with first element of the LST.
+Returns the rotated list."
+  (let ((args (car lst)))
+    (funcall fn args)
+    (append (cdr lst) (cons args ()))))
+#+END_SRC
+
 * Tweaking Emacs Defaults
 
 This section contains customizations of Emacs' default settings.
@@ -43,12 +58,27 @@ of text."
     (fill-paragraph nil region)))
 #+END_SRC
 
+** Indentation
+
+Tabs for indentation, spaces for alignment.
+
+#+BEGIN_SRC emacs-lisp
+
+;; (setq tab-width 4)        ;; set your desired tab width
+(setq indent-tabs-mode t)
+(setq evil-indent-convert-tabs nil)
+
+;; FIXME: check is this is annoying?
+;(smart-tabs-insinuate 'c 'c++ 'java 'javascript 'python)
+#+END_SRC
+
 ** Whitespace Cleanup
 
 Delete trailing whitespaces when saving.
 
 #+BEGIN_SRC emacs-lisp
-(add-hook 'write-file-hooks 'delete-trailing-whitespace)
+; (add-hook 'write-file-hooks 'delete-trailing-whitespace)
+(remove-hook 'write-file-hooks 'delete-trailing-whitespace)
 #+END_SRC
 
 # TODO: this doesn't seem to work everywhere :/
@@ -108,51 +138,6 @@ For some reason
 (setq-default password-cache nil)
 #+END_SRC
 
-* Additional Functionality
-** Sudo Save
-
-If the current buffer is not writable, ask if it should be saved with sudo.
-
-#+BEGIN_SRC emacs-lisp
-(defun ph/sudo-file-name (filename)
-  "Prepend '/sudo:root@`system-name`:' to FILENAME if appropriate.
-If the file already has a tramp prefix, return nil."
-  (when (and filename
-             (not (file-remote-p filename)))
-    (format "/sudo:root@%s:%s" (system-name) filename)))
-
-(defun ph/sudo-save-buffer ()
-  "Save buffer as root if the user approves."
-  (let ((filename (ph/sudo-file-name (buffer-file-name))))
-    (when (and filename
-               (yes-or-no-p (format "Save file as %s ? " filename)))
-      (write-file filename))))
-
-(defun ph/sudo-save-necessary-p ()
-  "Return t if file cannot be written as normal user"
-  (or (not (buffer-file-name))
-      (not (buffer-modified-p))
-      (file-writable-p (buffer-file-name))))
-
-
-(defun ph/sudo-save (fn &rest args)
-  "Call ph/sudo-save-buffer if necessary or call FN with ARGS."
-  (unless (and (ph/sudo-save-necessary-p)
-               (ph/sudo-save-buffer))
-    (call-interactively fn args)))
-
-(define-minor-mode ph/sudo-save-mode
-  "A minor to save files as sudo if they are not writable."
-  nil ;; init-value
-  "sudo" ;; lighter
-  nil
-  (if (bound-and-true-p ph/sudo-save-mode)
-      (advice-add 'save-buffer :around 'ph/sudo-save)
-    (advice-remove 'save-buffer 'ph/sudo-save)))
-#+END_SRC
-
-#+RESULTS:
-
 * Doom Module configuration
 ** Org Mode
 
@@ -177,8 +162,6 @@ If the file already has a tramp prefix, return nil."
   (setq which-key-idle-delay 0.4))
 #+END_SRC
 
-#+RESULTS:
-: 0.4
 
 ** Web
 
@@ -292,27 +275,32 @@ I want to scroll. I use evince.
   ;; update every 10 minutes
   (setq mu4e-update-interval (* 10 60))
 
+  ;; TODO: check why I need this on my new install to sign messages
+  ;; https://svn.red-bean.com/repos/kfogel/trunk/.emacs
+  (setq mml-secure-openpgp-sign-with-sender t)
+
   (setq shr-color-visible-luminance-min 60)
   (setq shr-color-visible-distance-min 5)
   (setq shr-use-colors nil))
   ;;(advice-add #'shr-colorize-region :around (defun shr-no-colourise-region (&rest ignore))))
 
+  ;; FIXME: why is this required? (mu4e~headers-buffer-name exists)
+  (setq mu4e-headers-buffer-name "*mu4e-headers*")
 #+END_SRC
 
-#+RESULTS:
 
 Open mu4e in the current frame or switch to an already existing mu4e-buffer.
 
 #+BEGIN_SRC emacs-lisp
-(defun ph/mu4e (fn &rest args)
-  "Open or switch to mu4e."
-  (interactive)
-  (unless (string-prefix-p "mu4e" (symbol-name major-mode))
-    (let ((buffer (get-buffer "*mu4e-headers*")))
-      (if buffer (switch-to-buffer buffer) (call-interactively fn args)))))
+;; (defun ph/mu4e (fn &rest args)
+;;   "Open or switch to mu4e."
+;;   (interactive)
+;;   (unless (string-prefix-p "mu4e" (symbol-name major-mode))
+;;     (let ((buffer (get-buffer "*mu4e-headers*")))
+;;       (if buffer (switch-to-buffer buffer) (call-interactively fn args)))))
 
-(advice-add 'mu4e :around 'ph/mu4e)
-(advice-add '=mu4e :around 'ph/mu4e)
+;; (advice-add 'mu4e :around 'ph/mu4e)
+;; (advice-add '=mu4e :around 'ph/mu4e)
 #+END_SRC
 
 *** Bookmarks
@@ -322,15 +310,13 @@ Custom Bookmarks
 #+BEGIN_SRC emacs-lisp
 (after! mu4e
   (add-to-list 'mu4e-bookmarks
-               (make-mu4e-bookmark
-                :name  "Big ones"
-                :query "size:5M..50000M"
-                :key ?b))
+               '(:name  "Big ones"
+                 :query "size:5M..50000M"
+                 :key ?b))
   (add-to-list 'mu4e-bookmarks
-               (make-mu4e-bookmark
-                :name  "Bullshit"
-                :query "maildir:/.*/.*\\(spam\\|junk\\).*/"
-                :key ?s)))
+               '(:name  "Bullshit"
+                 :query "maildir:/.*/.*\\(spam\\|junk\\).*/"
+                 :key ?s)))
 #+END_SRC
 
 *** Forgotten Attachment
@@ -401,8 +387,7 @@ before sending the mail.
                   (smtpmail-smtp-server          . "mail.infomaniak.com")
                   (smtpmail-smtp-service         . 587)
                   (smtpmail-smtp-user            . "pascal.huber@resolved.ch")
-                  (smtpmail-starttls-credentials . "/home/pascal/.authinfo.gpg")
-                  (smtpmail-auth-credentials     . '(("mail.resolved.ch" 587 nil nil)))))
+                  (smtpmail-starttls-credentials . "/home/pascal/.authinfo.gpg")))
         ,(make-mu4e-context
           :name "QuickShift"
           :match-func (lambda (msg)
@@ -453,10 +438,11 @@ before sending the mail.
                    .( ("/e/INBOX"                . ?i)
                       ("/e/Junk E-Mail"          . ?x)
                       ("/e/INBOX.keep"           . ?k)
-                      ("/e/INBOX.asl"            . ?a)
-                      ("/e/INBOX.iml"            . ?m)
-                      ("/e/INBOX.negotiation"    . ?n)
-                      ("/e/INBOX.podc"           . ?p)
+                      ("/e/INBOX.algolab"        . ?a)
+                      ("/e/INBOX.pai"            . ?p)
+                      ("/e/INBOX.dphpc"          . ?d)
+                      ("/e/INBOX.failure"        . ?f)
+                      ("/e/INBOX.syssec"         . ?l)
                       ("/e/Sent Items"           . ?s)
                       ("/e/INBOX.tmp"            . ?t)
                       ("/e/Deleted Items"        . ?b)))
@@ -526,8 +512,8 @@ are neatly packed inside a minor-mode with its own keymap.
 
 (define-minor-mode ph/global-keys-mode
   "A minor mode with personalized keybindings."
-  t ;; init-value
-  nil ;; lighter
+  :init-value t
+  :lighter nil
   ph/global-keys-keymap)
 #+END_SRC
 
@@ -554,18 +540,43 @@ Set default font
 ;; ;; Why not like this?
 ;; (set-face-attribute 'default nil
 ;;                     :height 120
-;;                     :family "Iosevka Term Slab")
+;;                     :family "Iosevka Nerd Font Mono")
 
 (setq doom-font-increment 1)
-
-(setq doom-font (font-spec :family "Iosevka Term Slab"
-                           :size 22
-                           :weight 'normal)
+(setq doom-font (font-spec
+                 :family "Iosevka Slab"
+                 ; :family "DejaVu Sans Mono"
+                 :size 22
+                 :weight 'normal)
       ;; inherits `doom-font''s :size
-      doom-variable-pitch-font (font-spec :family "Iosevka Term Slab")
-      doom-unicode-font (font-spec :family "Iosevka Term Slab" :size 22)
-      doom-big-font (font-spec :family "Iosevka Term Slab" :size 24))
+      doom-variable-pitch-font (font-spec :family "Iosevka Slab")
+      doom-unicode-font (font-spec :family "Iosevka Slab" :size 22)
+      doom-big-font (font-spec :family "Iosevka Slab" :size 24))
 #+END_SRC
+
+#+RESULTS:
+: #<font-spec nil nil Iosevka\ Slab nil nil nil nil nil 24 nil nil nil nil>
+
+Change font on the fly.
+
+#+BEGIN_SRC emacs-lisp
+(setq ph/font-list
+      '("Iosevka Slab"))
+
+(defun ph/doom-set-font (font)
+  (message (concat "setting font to " font))
+  (setq doom-font (font-spec :family font))
+  (doom/reload-font))
+
+(defun ph/doom-next-font ()
+  "Load next theme."
+  (interactive)
+  (setq ph/font-list
+        (ph/call-rotate 'ph/doom-set-font ph/font-list)))
+#+END_SRC
+
+#+RESULTS:
+: ph/doom-next-font
 
 ** Modeline
 
@@ -679,13 +690,6 @@ Setup modeline with my segments.
 (setq ph/theme-list
       '(doom-gruvbox
         doom-gruvbox-light))
-
-(defun ph/call-rotate (fn lst)
-  "Call FN with first element of the LST.
-Returns the rotated list."
-  (let ((args (car lst)))
-    (funcall fn args)
-    (append (cdr lst) (cons args ()))))
 
 (defun ph/next-theme ()
   "Load next theme."

@@ -54,8 +54,9 @@
        file-templates      ; auto-snippets for empty files
        fold                ; (nigh) universal code folding
        format    ; +onsave ; automated prettiness
-       ;;god               ; run Emacs commands without modifier keys
-       ;;lispy             ; vim for lisp, for people who don't like vim
+       ;; god               ; run Emacs commands without modifier keys
+       ;; lispy
+                                        ; vim for lisp, for people who don't like vim
        ;;multiple-cursors  ; editing in many places at once
        ;;objed             ; text object editing for the innocent
        ;;parinfer          ; turn lisp into python, sort of
@@ -78,7 +79,7 @@
 
        :checkers
        syntax              ; tasing you for every semicolon you forget
-       spell             ; tasing you for misspelling mispelling
+       spell +flyspell +hunspell     ; tasing you for misspelling mispelling
        grammar           ; tasing grammar mistake every you make
 
        :tools
@@ -106,7 +107,7 @@
 
        :lang
        ;;agda              ; types of types of types of types...
-       (cc +lsp)           ; C/C++/Obj-C madness
+       (cc +lsp +cmake-mode) ; C/C++/Obj-C madness
        ;;clojure           ; java with a lisp
        ;;common-lisp       ; if you've seen one lisp, you've seen them all
        ;;coq               ; proofs-as-programs
@@ -122,7 +123,7 @@
        ;;faust             ; dsp, but you get to keep your soul
        ;;fsharp            ; ML stands for Microsoft's Language
        ;;fstar             ; (dependent) types and (monadic) effects and Z3
-       ;;(go +lsp)         ; the hipster dialect
+       (go +lsp)         ; the hipster dialect
        ;;(haskell +dante)  ; a language that's lazier than I am
        ;;hy                ; readability of scheme w/ speed of python
        ;;idris             ;
@@ -131,11 +132,11 @@
        javascript          ; all(hope(abandon(ye(who(enter(here))))))
        ;;julia             ; a better, faster MATLAB
        ;;kotlin            ; a better, slicker Java(Script)
-       latex               ; writing papers in Emacs has never been so fun
+       latex +Evince               ; writing papers in Emacs has never been so fun
        ;;lean
        ;;factor
        ;;ledger            ; an accounting system in Emacs
-       ;;lua               ; one-based indices? one-based indices
+       lua               ; one-based indices? one-based indices
        markdown            ; writing docs for people to ignore
        ;;nim               ; python + lisp at the speed of c
        ;;nix               ; I hereby declare "nix geht mehr!"
@@ -145,25 +146,26 @@
        ;;php               ; perl's insecure younger brother
        ;;plantuml          ; diagrams for confusing people more
        ;;purescript        ; javascript, but functional
-       (python +conda)    ; beautiful is better than ugly
+       (python +lsp +pyvenv) ; beautiful is better than ugly
+       ;(python +pyright +pyvenv)       ; beautiful is better than ugly
        ;;qt                ; the 'cutest' gui framework ever
        ;;racket            ; a DSL for DSLs
        ;;rest              ; Emacs as a REST client
        ;;rst               ; ReST in peace
        (ruby +rails +rbenv +rvm + lsp) ; 1.step {|i| p "Ruby is #{i.even? ? 'love' : 'life'}"}
-       ;;rust              ; Fe2O3.unwrap().unwrap().unwrap().unwrap()
+       (rust +lsp)         ; Fe2O3.unwrap().unwrap().unwrap().unwrap()
        ;;scala             ; java, but good
        ;;scheme            ; a fully conniving family of lisps
-       sh                  ; she sells {ba,z,fi}sh shells on the C xor
+       (sh +fish)     ; she sells {ba,z,fi}sh shells on the C xor
        ;;sml
-       ;;solidity          ; do you need a blockchain? No.
+       solidity            ; do you need a blockchain? No.
        ;;swift             ; who asked for emoji variables?
        ;;terra             ; Earth and Moon in alignment for performance.
        (web +lsp)               ; the tubes
        yaml                ; JSON, but readable
 
        :email
-       mu4e
+       (mu4e -org-msg)
        ;;notmuch
        ;;(wanderlust +gmail)
 
