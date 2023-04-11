@@ -458,14 +458,21 @@ before sending the mail.
                   (smtpmail-auth-credentials     . '(("mail.ethz.ch" 587 nil nil))))))))
 
 
-;; (set-email-account! "Lissner.net"
-;;   '((mu4e-sent-folder       . "/Lissner.net/Sent Mail")
-;;     (mu4e-drafts-folder     . "/Lissner.net/Drafts")
-;;     (mu4e-trash-folder      . "/Lissner.net/Trash")
-;;     (mu4e-refile-folder     . "/Lissner.net/All Mail")
-;;     (smtpmail-smtp-user     . "henrik@lissner.net")
-;;     (mu4e-compose-signature . "---\nHenrik Lissner"))
-;;   t)
+;; TODO: refactor mu4e refile function
+(defun my-mu4e-refile-folder-function (msg)
+  "refile while keeping folders MSG."
+  (let ((maildir (mu4e-message-field msg :maildir))
+        folder)
+    (cond
+     ((string-prefix-p "/r/" maildir)
+      (setq folder (concat "/r_archive/" (substring maildir (length "/r/")))))
+     ((string-prefix-p "/q/" maildir)
+      (setq folder (concat "/q_archive/" (substring maildir (length "/q/")))))
+     ((string-prefix-p "/e/" maildir)
+      (setq folder (concat "/e_archive/" (substring maildir (length "/e/"))))))
+    folder))
+
+(setq mu4e-refile-folder 'my-mu4e-refile-folder-function)
 #+END_SRC
 
 * Key Bindings
